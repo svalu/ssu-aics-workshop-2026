@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css?v=9">
+<link rel="stylesheet" href="./assets/style.css?v=10">
 </head>
 <body>
 <div class="wrap">
@@ -111,6 +111,10 @@
       <label>동승 가능 좌석 (운전자 제외)</label>
       <select id="rideSeats"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
     </div>
+    <div class="field">
+      <label>메모 (선택) — 출발 장소·시간, 사정 등</label>
+      <input type="text" id="rideMemo" placeholder="예: 판교 11:30 출발 / 교육 끝나고 합류" maxlength="60">
+    </div>
     <div class="sheet-actions">
       <button type="button" class="btn ghost" id="rideCancel">닫기</button>
       <button type="button" class="btn primary" id="rideSave">저장 ✅</button>
@@ -130,6 +134,25 @@
   </div>
 </div>
 
+<!-- 차 빼기 시트 -->
+<div class="sheet-bg" id="removeBg">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2 id="removeTitle">차 빼기 🚫</h2>
+    <p class="hint" id="removeHint"></p>
+    <div class="field">
+      <label>운전자는 어떻게 가요?</label>
+      <div class="choices ride-choices" id="removeChoices">
+        <button type="button" class="choice on" data-k="public">🚌 따로 이동<small>교육, 다른 곳에서 출발, 늦게 합류 등</small></button>
+        <button type="button" class="choice" data-k="none">❓ 미정<small>나중에 다른 차 타기로 정할게요</small></button>
+      </div>
+    </div>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="removeCancel">취소</button>
+      <button type="button" class="btn primary" id="removeDo" style="background:var(--coral)">🚫 차 빼기</button>
+    </div>
+  </div>
+</div>
+
 <!-- 인원 추가 시트 -->
 <div class="sheet-bg" id="addBg">
   <div class="sheet" role="dialog" aria-modal="true">
@@ -143,8 +166,8 @@
   </div>
 </div>
 
-<script src="./assets/data.js?v=9"></script>
-<script src="./assets/app.js?v=9"></script>
+<script src="./assets/data.js?v=10"></script>
+<script src="./assets/app.js?v=10"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe } = window.WK;
@@ -182,7 +205,7 @@
     const cars = [], byDriver = {};
     people.forEach((n) => {
       const r = rideOf(n);
-      if (r.mode === "drive") { const c = { driver: n, seats: +r.seats || 4, passengers: [], color: CAR_COLORS[cars.length % CAR_COLORS.length] }; cars.push(c); byDriver[n] = c; }
+      if (r.mode === "drive") { const c = { driver: n, seats: +r.seats || 4, memo: r.memo || "", passengers: [], color: CAR_COLORS[cars.length % CAR_COLORS.length] }; cars.push(c); byDriver[n] = c; }
     });
     const pool = [], apart = [];
     people.forEach((n) => {
@@ -241,7 +264,8 @@
         ...Array.from({ length: Math.max(0, cap - n) }, () => `<button type="button" class="seat empty" data-seat="${esc(c.driver)}">＋ 빈자리</button>`)
       ].join("");
       return `<article class="car ${c.driver === popCar ? "pop" : ""} ${c.driver === me || c.passengers.includes(me) ? "mine" : ""}" style="--car:${c.color}">
-        <div class="car-head"><span class="drv">${avatar(c.driver).emoji} ${esc(c.driver)} 차</span><span class="cap ${capCls}">${n}/${cap}${n > cap ? " 초과!" : n === cap ? " 만석" : ""}</span></div>
+        <div class="car-head"><span class="drv">${avatar(c.driver).emoji} ${esc(c.driver)} 차</span><span class="cap ${capCls}">${n}/${cap}${n > cap ? " 초과!" : n === cap ? " 만석" : ""}</span><button type="button" class="car-x" data-remove="${esc(c.driver)}" title="차 빼기" aria-label="차 빼기">✕</button></div>
+        ${c.memo ? `<div class="car-memo">📝 ${esc(c.memo)}</div>` : ""}
         ${carSvg(c.color, [avatar(c.driver).emoji, ...c.passengers.map((p) => avatar(p).emoji)])}
         <div class="seats">${seats}</div>
       </article>`;
@@ -338,6 +362,7 @@
     rideFor = name; ridePick = { ...rideOf(name) };
     $("#rideTitle").textContent = `${avatar(name).emoji} ${name} 님, 어떻게 가요?`;
     $("#rideSeats").value = String(ridePick.seats || 4);
+    $("#rideMemo").value = ridePick.memo || "";
     paintRide();
     openBg("#rideBg");
   }
@@ -348,7 +373,9 @@
       { key: "drive", label: "🛞 내 차로 운전", sub: rideOf(rideFor).mode === "drive" ? "지금 운전 중" : "새 차가 생겨요" },
       ...cars.filter((c) => c.driver !== rideFor).map((c) => ({ key: "ride:" + c.driver, label: `${avatar(c.driver).emoji} ${c.driver} 차 타기`, sub: `${c.passengers.length}/${c.seats}${c.passengers.length >= c.seats ? " · 꽉 찼지만 끼어 타기 가능" : ""}` })),
       { key: "public", label: "🚌 따로 이동", sub: "대중교통, 다른 데서 출발 등" },
-      { key: "none", label: "❓ 미정", sub: "아직 모르겠어요" }
+      rideOf(rideFor).mode === "ride"
+        ? { key: "none", label: "🚪 이 차에서 내리기", sub: "미정으로 돌아가요" }
+        : { key: "none", label: "❓ 미정", sub: "아직 모르겠어요" }
     ];
     const cur = ridePick.mode === "ride" ? "ride:" + ridePick.with : ridePick.mode;
     $("#rideChoices").innerHTML = opts.map((o) => `<button type="button" class="choice ${o.key === cur ? "on" : ""}" data-k="${esc(o.key)}">${o.label}<small>${esc(o.sub)}</small></button>`).join("");
@@ -364,7 +391,7 @@
   $("#rideBg").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeRide(); });
   $("#rideSave").onclick = (e) => {
     const name = rideFor; if (!name) return;
-    const rec = { ...ridePick, updatedAt: Date.now(), by: getMe() || "" };
+    const rec = { ...ridePick, memo: $("#rideMemo").value.trim(), updatedAt: Date.now(), by: getMe() || "" };
     if (rec.mode === "drive") rec.seats = +$("#rideSeats").value || 4;
     closeRide();
     const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 16);
@@ -398,8 +425,36 @@
     store.set("ride", n, { mode: "ride", with: drv, updatedAt: Date.now(), by: getMe() || "" });
   });
 
-  // 카풀 보드 클릭: 자리(사람) → 이동방법 시트, 빈자리 → 태우기, 내 차 추가 → 운전 선택
+  /* ---------- 차 빼기 ---------- */
+  let removeDriver = null, removePick = "public";
+  function openRemove(driver) {
+    removeDriver = driver; removePick = "public";
+    const ps = buildCars().byDriver[driver]?.passengers || [];
+    $("#removeTitle").textContent = `${avatar(driver).emoji} ${driver} 차를 뺄까요?`;
+    $("#removeHint").textContent = ps.length
+      ? `동승자 ${ps.join(", ")} (${ps.length}명)는 '아직 못 탄 사람'으로 돌아가요. 다른 차 빈자리에서 다시 태워줘.`
+      : "동승자가 없어서 차만 사라져요.";
+    paintRemove(); openBg("#removeBg");
+  }
+  function paintRemove() { $$("#removeChoices .choice").forEach((b) => b.classList.toggle("on", b.dataset.k === removePick)); }
+  $("#removeChoices").addEventListener("click", (e) => { const b = e.target.closest(".choice"); if (!b) return; removePick = b.dataset.k; paintRemove(); });
+  $("#removeCancel").onclick = () => closeBg("#removeBg");
+  $("#removeBg").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeBg("#removeBg"); });
+  $("#removeDo").onclick = (e) => {
+    const drv = removeDriver; if (!drv) return;
+    const ps = buildCars().byDriver[drv]?.passengers || [];
+    closeBg("#removeBg");
+    const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 14);
+    toast(`${drv} 차 뺐어요 🚫${ps.length ? ` · ${ps.length}명 미배정` : ""}`);
+    popOnce(drv);
+    const t = Date.now(), by = getMe() || "";
+    store.set("ride", drv, { mode: removePick, memo: rideOf(drv).memo || "", updatedAt: t, by });
+    ps.forEach((p) => store.set("ride", p, { mode: "none", updatedAt: t, by }));
+  };
+
+  // 카풀 보드 클릭: ✕ → 차 빼기, 자리(사람) → 이동방법 시트, 빈자리 → 태우기, 내 차 추가 → 운전 선택
   $("#carpoolCard").addEventListener("click", (e) => {
+    const rm = e.target.closest("[data-remove]"); if (rm) { openRemove(rm.dataset.remove); return; }
     const seat = e.target.closest("[data-seat]"); if (seat) { openSeat(seat.dataset.seat); return; }
     const who = e.target.closest("[data-ride]"); if (who) { openRide(who.dataset.ride); return; }
     if (e.target.closest("#carNew")) {

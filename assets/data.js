@@ -8,7 +8,7 @@ window.WK_CONFIG = {
   title: "2026 하반기 SSU AICS 워크샵",
   subtitle: "1박 2일 · 15명 · 곤지암",
   // 워크샵 당일 (예: "2026-09-19"). 비워두면 D-day 표시가 숨겨집니다.
-  date: "",
+  date: "2026-09-11",
   meetTime: "13:00",
   // 당일 일정표 (홈 화면 타임라인). 여기만 고치면 화면이 바뀝니다.
   schedule: [
@@ -41,7 +41,8 @@ window.WK_CONFIG = {
   defaultCarpool: {
     "민경윤": { mode: "drive", seats: 4 }, "방희태": { mode: "ride", with: "민경윤" }, "오대성": { mode: "ride", with: "민경윤" },
     "이진수": { mode: "drive", seats: 4 }, "류해원": { mode: "ride", with: "이진수" },
-    "이기원": { mode: "drive", seats: 4 }, "김성우": { mode: "ride", with: "이기원" }, "이상묵": { mode: "ride", with: "이기원" },
+    // 9/10 이기원: 교육으로 출발 못 함 → 김성우 차로 김성우·이상묵 이동, 이기원은 따로
+    "김성우": { mode: "drive", seats: 4 }, "이상묵": { mode: "ride", with: "김성우" }, "이기원": { mode: "public" },
     "장유석": { mode: "drive", seats: 4 },
     "전병수": { mode: "drive", seats: 4 }, "이현행": { mode: "ride", with: "전병수" },
     "최창현": { mode: "drive", seats: 4 }

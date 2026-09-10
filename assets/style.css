@@ -455,6 +455,14 @@ html { scroll-behavior: smooth; }
 .car-head .cap { font-size: 12px; font-weight: 800; border: 2px solid var(--ink); border-radius: 999px; padding: 1px 9px; background: var(--paper); white-space: nowrap; }
 .car-head .cap.full { background: var(--lemon); }
 .car-head .cap.over { background: var(--coral); color: #fff; }
+.car-x {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper);
+  color: var(--coral); font-weight: 900; font-size: 13px; line-height: 1; padding: 0; display: grid; place-items: center;
+  box-shadow: 2px 2px 0 var(--ink); transition: transform .15s, background-color .15s;
+}
+.car-x:active { transform: translate(2px,2px); box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { .car-x:hover { background: var(--coral); color: #fff; transform: rotate(90deg); } }
+.car-memo { font-size: 12px; font-weight: 700; color: var(--ink-2); background: var(--paper); border: 2px dashed var(--ink); border-radius: 10px; padding: 3px 8px; margin: 4px 0 2px; }
 
 /* 차 그림 */
 .car-svg { width: 100%; height: auto; display: block; overflow: visible; margin: 2px 0 4px; }
