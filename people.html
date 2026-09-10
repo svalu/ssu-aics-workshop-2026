@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4ecdc4">
+<title>SSU AICS 워크샵 · 인원체크</title>
+<meta property="og:title" content="워크샵 인원체크 🙋 누가 언제 오나">
+<meta property="og:description" content="내 카드 눌러서 도착시간 적어줘! 기본은 12시 동동국수 본점.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🙋</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./assets/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="topbar"></header>
+
+  <section class="card tilt-l" style="margin-top:14px">
+    <span class="sticker" id="countSticker">15명</span>
+    <div class="eyebrow">🙋 인원체크</div>
+    <h2>누가 언제 오나 👀</h2>
+    <p style="margin:0 0 12px;color:var(--ink-2);font-size:14px;font-weight:600">
+      기본은 <b id="baseTime">12:00</b>에 <b>동동국수 본점</b>. 내 카드를 눌러서 도착 시간·이동 방법을 적어줘. 늦거나 펜션으로 바로 오면 꼭!
+    </p>
+    <div class="progress"><i id="bar" style="width:0%"></i></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
+      <span style="font-weight:800;font-size:13px" id="barText">0 / 15 입력</span>
+      <span class="sync"><i></i><b>연결 중…</b></span>
+    </div>
+    <div class="stat-row">
+      <div class="stat"><b id="sNoodle">0</b><span id="sNoodleLabel">🍜 12시 식당</span></div>
+      <div class="stat"><b id="sLate">0</b><span>⏰ 늦게 도착</span></div>
+      <div class="stat"><b id="sPension">0</b><span>🏠 펜션 직행</span></div>
+      <div class="stat"><b id="sAbsent">0</b><span>😢 불참</span></div>
+    </div>
+  </section>
+
+  <div id="meHint" class="card" style="padding:12px 16px;display:none;background:var(--lemon)">
+    <b>👆 위에서 "나는 누구?"를 먼저 골라줘.</b> 그래야 내 카드가 표시되고 바로 수정할 수 있어. (다른 사람 카드도 누르면 대신 적어줄 수 있음)
+  </div>
+
+  <div class="people-grid" id="grid"></div>
+
+  <p class="footer" style="margin-top:22px">시간은 24시간 기준 · 저장하면 모두에게 바로 공유돼요 · 이름이 없으면 「인원 추가」로!</p>
+</div>
+
+<!-- 도착 정보 편집 시트 -->
+<div class="sheet-bg" id="sheetBg">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2 id="shName">이름</h2>
+    <p class="hint">어디로, 몇 시에 오는지 알려줘</p>
+    <div class="field">
+      <label>어디로?</label>
+      <div class="choices" id="choices">
+        <button type="button" class="choice" data-v="noodle"><span id="chNoodle">🍜 식당 12시</span><small>기본! 동동국수 본점</small></button>
+        <button type="button" class="choice" data-v="late">⏰ 식당 늦게<small>도착 시간 적어줘</small></button>
+        <button type="button" class="choice" data-v="pension">🏠 펜션 직행<small>펜션 도착 시간</small></button>
+        <button type="button" class="choice" data-v="absent">😢 불참<small>ㅠㅠ</small></button>
+      </div>
+    </div>
+    <div class="field" id="fTime">
+      <label id="fTimeLabel">도착 예정 시간</label>
+      <input type="time" id="inTime" step="300">
+    </div>
+    <div class="field">
+      <label>이동 방법 (자차 / 누구 차 동승 / 대중교통)</label>
+      <input type="text" id="inRide" placeholder="예: 🚗 운전 (OO 동승) / OO 차 동승 / 버스" maxlength="60">
+    </div>
+    <div class="field">
+      <label>한마디 (선택)</label>
+      <input type="text" id="inMemo" placeholder="예: 육칼 먼저 시켜놔 주세요" maxlength="80">
+    </div>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="btnRemove" style="flex:0 0 auto;color:var(--coral);display:none">🗑 명단 삭제</button>
+      <button type="button" class="btn ghost" id="btnCancel">닫기</button>
+      <button type="button" class="btn primary" id="btnSave">저장 ✅</button>
+    </div>
+  </div>
+</div>
+
+<!-- 인원 추가 시트 -->
+<div class="sheet-bg" id="addBg">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2>인원 추가 ➕</h2>
+    <p class="hint">명단에 없는 사람을 추가해요. 누구나 추가할 수 있고, 추가된 사람은 카드에서 삭제도 가능.</p>
+    <div class="field"><label>이름</label><input type="text" id="addName" placeholder="예: 홍길동" maxlength="20" autocomplete="off"></div>
+    <div class="field"><label>이동 방법 (선택)</label><input type="text" id="addRide" placeholder="예: OO 차 동승" maxlength="60"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="addCancel">닫기</button>
+      <button type="button" class="btn primary" id="addSave">추가 ✅</button>
+    </div>
+  </div>
+</div>
+
+<script src="./assets/data.js"></script>
+<script src="./assets/app.js"></script>
+<script>
+(function () {
+  const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe } = window.WK;
+  const store = WK.store;
+  WK.renderChrome("people");
+
+  const meetLabel = C.meetTime.replace(/^0/, "").replace(":00", "시").replace(":", "시 ");
+  $("#baseTime").textContent = C.meetTime;
+  $("#chNoodle").textContent = `🍜 식당 ${meetLabel}`;
+  $("#sNoodleLabel").textContent = `🍜 ${meetLabel} 식당`;
+
+  const STATUS = { noodle: "🍜 식당 집결", late: "⏰ 늦게 도착", pension: "🏠 펜션 직행", absent: "😢 불참" };
+  let att = {}, extra = {};
+  let editing = null, pickStatus = "noodle";
+
+  const isExtra = (name) => !C.people.includes(name) && !!extra[name];
+  function personOf(name) {
+    const p = att[name] || {};
+    const ride = p.ride ?? (C.defaultRide[name] || (extra[name] && extra[name].ride) || "");
+    return { status: p.status || "noodle", time: p.time || C.meetTime, ride, memo: p.memo || "", updatedAt: p.updatedAt || 0, by: p.by || "" };
+  }
+
+  function render() {
+    const me = getMe(), people = WK.allPeople();
+    $("#meHint").style.display = me ? "none" : "block";
+    $("#countSticker").textContent = people.length + "명";
+    let filled = 0; const cnt = { noodle: 0, late: 0, pension: 0, absent: 0 };
+    const cards = people.map((name) => {
+      const p = personOf(name); const av = avatar(name);
+      if (p.updatedAt) filled++; cnt[p.status] = (cnt[p.status] || 0) + 1;
+      const showTime = p.status !== "absent";
+      return `<button type="button" class="person ${name === me ? "me" : ""} ${p.status === "absent" ? "absent" : ""}" data-name="${esc(name)}">
+        ${name === me ? '<span class="me-badge">ME</span>' : isExtra(name) ? '<span class="me-badge" style="background:var(--mint)">추가됨</span>' : ""}
+        ${p.updatedAt ? `<span class="edited">${timeAgo(p.updatedAt)}</span>` : '<span class="edited">아직 미입력</span>'}
+        <div class="av" style="background:${av.bg}">${av.emoji}</div>
+        <div class="nm">${esc(name)}</div>
+        <span class="st ${p.status}">${STATUS[p.status]}</span>
+        ${showTime ? `<div class="tm">${esc(p.time)}</div>` : ""}
+        ${p.ride ? `<div class="ride">${esc(p.ride)}</div>` : ""}
+        ${p.memo ? `<div class="memo">💬 ${esc(p.memo)}</div>` : ""}
+      </button>`;
+    });
+    cards.push(`<button type="button" class="person add-person" id="addPerson"><div class="av" style="background:var(--lemon)">➕</div><div class="nm">인원 추가</div><div class="ride">명단에 없는 사람 추가하기</div></button>`);
+    $("#grid").innerHTML = cards.join("");
+    $("#bar").style.width = Math.round(filled / people.length * 100) + "%";
+    $("#barText").textContent = `${filled} / ${people.length} 입력 완료`;
+    $("#sNoodle").textContent = cnt.noodle; $("#sLate").textContent = cnt.late; $("#sPension").textContent = cnt.pension; $("#sAbsent").textContent = cnt.absent;
+  }
+
+  // ---- 도착 정보 시트
+  function openSheet(name) {
+    editing = name; const p = personOf(name);
+    $("#shName").textContent = `${avatar(name).emoji} ${name}`;
+    pickStatus = p.status; paintChoices();
+    $("#inTime").value = p.time; $("#inRide").value = p.ride; $("#inMemo").value = p.memo;
+    $("#btnRemove").style.display = isExtra(name) ? "" : "none";
+    $("#sheetBg").classList.add("open"); document.body.style.overflow = "hidden";
+  }
+  function closeSheet() { $("#sheetBg").classList.remove("open"); document.body.style.overflow = ""; editing = null; }
+  function paintChoices() {
+    $$(".choice").forEach((b) => { b.classList.toggle("on", b.dataset.v === pickStatus); b.classList.toggle(b.dataset.v, b.dataset.v === pickStatus); });
+    $("#fTime").style.display = pickStatus === "absent" ? "none" : "";
+    $("#fTimeLabel").textContent = pickStatus === "pension" ? "펜션 도착 예정 시간" : "식당 도착 예정 시간";
+    if (pickStatus === "noodle") $("#inTime").value = C.meetTime;
+  }
+  $("#choices").addEventListener("click", (e) => { const b = e.target.closest(".choice"); if (!b) return; pickStatus = b.dataset.v; paintChoices(); });
+  $("#btnCancel").onclick = closeSheet;
+  $("#sheetBg").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeSheet(); });
+  $("#grid").addEventListener("click", (e) => {
+    if (e.target.closest("#addPerson")) { openAdd(); return; }
+    const b = e.target.closest(".person"); if (b) openSheet(b.dataset.name);
+  });
+
+  $("#btnSave").onclick = (e) => {
+    if (!editing) return;
+    const name = editing, rec = {
+      status: pickStatus, time: pickStatus === "absent" ? "" : ($("#inTime").value || C.meetTime),
+      ride: $("#inRide").value.trim(), memo: $("#inMemo").value.trim(), updatedAt: Date.now(), by: getMe() || ""
+    };
+    closeSheet();
+    const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top);
+    toast(`${name} 저장! ${STATUS[rec.status]}`);
+    store.set("att", name, rec);
+  };
+  $("#btnRemove").onclick = () => {
+    const name = editing; if (!name || !isExtra(name)) return;
+    if (!confirm(`"${name}" 님을 명단에서 삭제할까요?`)) return;
+    closeSheet(); toast(`${name} 삭제됨`);
+    if (getMe() === name) WK.setMe("");
+    store.remove("person", name); store.remove("att", name);
+  };
+
+  // ---- 인원 추가 시트
+  function openAdd() { $("#addName").value = ""; $("#addRide").value = ""; $("#addBg").classList.add("open"); document.body.style.overflow = "hidden"; setTimeout(() => $("#addName").focus(), 60); }
+  function closeAdd() { $("#addBg").classList.remove("open"); document.body.style.overflow = ""; }
+  $("#addCancel").onclick = closeAdd;
+  $("#addBg").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeAdd(); });
+  $("#addName").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#addSave").click(); });
+  $("#addSave").onclick = (e) => {
+    const name = $("#addName").value.trim().replace(/\s+/g, " ");
+    if (!name) { toast("이름을 적어줘"); return; }
+    if (WK.allPeople().includes(name)) { toast("이미 명단에 있어요"); return; }
+    if (/[.#$\[\]\/:]/.test(name)) { toast("이름에 . # $ [ ] / : 는 못 써요"); return; }
+    const ride = $("#addRide").value.trim();
+    closeAdd();
+    const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 22);
+    toast(`${name} 님 추가! 환영 🎉`);
+    store.set("person", name, { name, ride, addedBy: getMe() || "", createdAt: Date.now() });
+  };
+
+  // ---- 데이터 구독
+  store.subscribe("person", (docs) => {
+    extra = docs || {};
+    const names = Object.values(extra).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((p) => p.name).filter(Boolean);
+    WK.setExtraPeople(names); render();
+  });
+  store.subscribe("att", (docs) => { att = docs || {}; render(); });
+  document.addEventListener("wk:me", render);
+  setInterval(render, 30000);
+  store.startPolling(["person", "att"]);
+})();
+</script>
+</body>
+</html>

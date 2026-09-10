@@ -1,0 +1,284 @@
+/* 공통: 공유 저장소(Store), 내 이름 선택, 탭바, 토스트, 컨페티 */
+(function () {
+  const CFG = window.WK_CONFIG;
+  const $ = (s, el = document) => el.querySelector(s);
+  const $$ = (s, el = document) => Array.from(el.querySelectorAll(s));
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  /* ---------- 내 이름 ---------- */
+  const ME_KEY = "wk_me";
+  function getMe() { try { return localStorage.getItem(ME_KEY) || ""; } catch { return ""; } }
+  function setMe(v) { try { localStorage.setItem(ME_KEY, v); } catch {} document.dispatchEvent(new CustomEvent("wk:me", { detail: v })); }
+
+  /* ---------- 토스트 ---------- */
+  let toastEl, toastTimer;
+  function toast(msg, ms = 1800) {
+    if (!toastEl) { toastEl = document.createElement("div"); toastEl.className = "toast"; document.body.appendChild(toastEl); }
+    toastEl.textContent = msg; toastEl.classList.add("show");
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove("show"), ms);
+  }
+
+  /* ---------- 컨페티 ---------- */
+  function confetti(x, y, n = 18) {
+    const colors = ["#ff6b6b", "#ffb347", "#ffe66d", "#4ecdc4", "#63a4ff", "#a78bfa", "#ff8fab"];
+    for (let i = 0; i < n; i++) {
+      const p = document.createElement("i");
+      const a = Math.random() * Math.PI * 2, v = 60 + Math.random() * 90;
+      p.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:9px;height:9px;border-radius:${Math.random() > .5 ? "50%" : "2px"};background:${colors[i % colors.length]};border:1.5px solid #1f1b2e;z-index:99;pointer-events:none;transform:translate(-50%,-50%)`;
+      document.body.appendChild(p);
+      const dx = Math.cos(a) * v, dy = Math.sin(a) * v - 60;
+      p.animate([
+        { transform: "translate(-50%,-50%) rotate(0)", opacity: 1 },
+        { transform: `translate(${dx}px,${dy + 90}px) rotate(${360 * (Math.random() > .5 ? 1 : -1)}deg)`, opacity: 0 }
+      ], { duration: 700 + Math.random() * 400, easing: "cubic-bezier(.2,.8,.3,1)" }).onfinish = () => p.remove();
+    }
+  }
+
+  /* =====================================================================
+     공유 저장소
+     - 컬렉션(col) 안에 문서(id -> object) 구조. 문서 단위로 저장해서 동시 수정 충돌이 없음.
+     - provider: "kvdb" (kvdb.io 버킷) | "firebase" (Realtime Database REST) | "local" (내 기기만)
+     - 실패한 쓰기는 큐에 저장해 두고 연결되면 자동 재시도 (새로고침해도 유지)
+     ===================================================================== */
+  const S = CFG.storage || {};
+  const provider = S.provider || "local";
+
+  const adapters = {
+    kvdb: {
+      url: (key) => `${S.kvdb.base.replace(/\/$/, "")}/${S.kvdb.bucket}/${encodeURIComponent(key)}`,
+      async list(col) {
+        const r = await fetch(`${S.kvdb.base.replace(/\/$/, "")}/${S.kvdb.bucket}/?prefix=${encodeURIComponent(col + ":")}&values=true&format=json&limit=1000`, { cache: "no-store" });
+        if (!r.ok) throw new Error("list " + r.status);
+        const arr = await r.json();
+        const out = {};
+        (arr || []).forEach((pair) => {
+          const [key, val] = Array.isArray(pair) ? pair : [pair.key, pair.value];
+          const id = String(key).slice(col.length + 1);
+          try { out[id] = typeof val === "string" ? JSON.parse(val) : val; } catch { /* skip */ }
+        });
+        return out;
+      },
+      async set(col, id, obj) {
+        // POST + text/plain => CORS 사전요청 없이 저장 가능
+        const r = await fetch(this.url(col + ":" + id), { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(obj) });
+        if (!r.ok) throw new Error("set " + r.status);
+      },
+      async del(col, id) {
+        const r = await fetch(this.url(col + ":" + id), { method: "DELETE" });
+        if (!r.ok && r.status !== 404) throw new Error("del " + r.status);
+      }
+    },
+    firebase: {
+      url: (path) => `${S.firebase.databaseURL.replace(/\/$/, "")}/${S.firebase.root || "workshop"}/${path}.json`,
+      async list(col) {
+        const r = await fetch(this.url(col), { cache: "no-store" });
+        if (!r.ok) throw new Error("list " + r.status);
+        return (await r.json()) || {};
+      },
+      async set(col, id, obj) {
+        const r = await fetch(this.url(col + "/" + encodeURIComponent(id)), { method: "PUT", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify(obj) });
+        if (!r.ok) throw new Error("set " + r.status);
+      },
+      async del(col, id) {
+        const r = await fetch(this.url(col + "/" + encodeURIComponent(id)), { method: "DELETE" });
+        if (!r.ok) throw new Error("del " + r.status);
+      }
+    },
+    local: {
+      async list() { throw new Error("local only"); },
+      async set() { throw new Error("local only"); },
+      async del() { throw new Error("local only"); }
+    }
+  };
+  const A = adapters[provider] || adapters.local;
+
+  const cacheKey = (col) => "wk2_" + col;
+  const QUEUE_KEY = "wk2_queue";
+  const listeners = {};
+  const state = {};
+  const status = { online: provider !== "local", busy: false, provider };
+  let queue = [];
+  try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch {}
+
+  const readCache = (col) => { try { return JSON.parse(localStorage.getItem(cacheKey(col)) || "null"); } catch { return null; } };
+  const writeCache = (col, v) => { try { localStorage.setItem(cacheKey(col), JSON.stringify(v)); } catch {} };
+  const saveQueue = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(queue)); } catch {} };
+  const emit = (col) => (listeners[col] || []).forEach((fn) => { try { fn(state[col]); } catch (e) { console.error(e); } });
+  const setStatus = (p) => { Object.assign(status, p); document.dispatchEvent(new CustomEvent("wk:status", { detail: { ...status } })); };
+  const apply = (col, docs) => { state[col] = docs; writeCache(col, docs); emit(col); };
+
+  // 큐에 쌓인 변경을 로컬 상태에 겹쳐서 보여주기 (서버에 아직 없어도 내 화면엔 보이게)
+  function overlay(col, docs) {
+    const out = { ...docs };
+    queue.filter((q) => q.col === col).forEach((q) => { if (q.type === "set") out[q.id] = q.obj; else delete out[q.id]; });
+    return out;
+  }
+
+  async function flushQueue() {
+    while (queue.length) {
+      const q = queue[0];
+      if (q.type === "set") await A.set(q.col, q.id, q.obj); else await A.del(q.col, q.id);
+      queue.shift(); saveQueue();
+    }
+  }
+
+  async function pull(col, { silent } = {}) {
+    if (provider === "local") { if (!state[col]) apply(col, readCache(col) || {}); return state[col]; }
+    setStatus({ busy: true });
+    try {
+      const hadQueue = queue.length > 0;
+      await flushQueue();
+      const docs = await A.list(col);
+      apply(col, docs);
+      setStatus({ online: true, busy: false });
+      if (hadQueue && !queue.length) toast("연결 복구! 밀린 변경 저장 완료 ✅");
+      return docs;
+    } catch (e) {
+      console.warn("pull 실패", e);
+      setStatus({ online: false, busy: false });
+      if (!state[col]) apply(col, overlay(col, readCache(col) || {}));
+      if (!silent) toast("공유 저장소에 연결이 안 돼요. 내 기기 저장본으로 보여줄게요");
+      return state[col];
+    }
+  }
+
+  async function write(op) {
+    // 낙관적 반영
+    const docs = { ...(state[op.col] || readCache(op.col) || {}) };
+    if (op.type === "set") docs[op.id] = op.obj; else delete docs[op.id];
+    apply(op.col, docs);
+    if (provider === "local") return;
+    setStatus({ busy: true });
+    try {
+      await flushQueue();
+      if (op.type === "set") await A.set(op.col, op.id, op.obj); else await A.del(op.col, op.id);
+      setStatus({ online: true, busy: false });
+    } catch (e) {
+      console.warn("write 실패", e);
+      queue.push(op); saveQueue();
+      setStatus({ online: false, busy: false });
+      toast("지금은 공유 저장소 연결이 안 돼요. 연결되면 자동으로 저장돼요");
+    }
+  }
+  const set = (col, id, obj) => write({ type: "set", col, id, obj });
+  const remove = (col, id) => write({ type: "del", col, id });
+
+  function subscribe(col, fn) {
+    (listeners[col] = listeners[col] || []).push(fn);
+    if (!state[col]) state[col] = overlay(col, readCache(col) || {});
+    fn(state[col]);
+  }
+
+  let pollTimer = null;
+  function startPolling(cols) {
+    const tick = () => { if (document.visibilityState === "visible") cols.forEach((c) => pull(c, { silent: true })); };
+    cols.forEach((c) => pull(c));
+    clearInterval(pollTimer); pollTimer = setInterval(tick, S.pollMs || 15000);
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") tick(); });
+    window.addEventListener("online", tick);
+    window.addEventListener("focus", tick);
+  }
+
+  /* ---------- 사람 목록 (기본 15명 + 추가된 사람) ---------- */
+  let extraPeople = [];
+  function allPeople() {
+    const base = CFG.people.slice();
+    extraPeople.forEach((n) => { if (!base.includes(n)) base.push(n); });
+    return base;
+  }
+  function setExtraPeople(list) {
+    extraPeople = list.slice();
+    refreshPeopleSelects();
+    document.dispatchEvent(new CustomEvent("wk:people", { detail: allPeople() }));
+  }
+  function refreshPeopleSelects() {
+    $$("select[data-people]").forEach((sel) => {
+      const cur = sel.value, first = sel.querySelector("option") ? sel.querySelector("option").outerHTML : "";
+      sel.innerHTML = first + allPeople().map((n) => `<option value="${esc(n)}">${esc(n)}</option>`).join("");
+      sel.value = cur;
+      if (sel.value !== cur) sel.value = "";
+    });
+    const me = $("#mePick"); if (me) me.value = getMe();
+  }
+
+  /* ---------- 공통 UI ---------- */
+  function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+  function timeAgo(ts) {
+    if (!ts) return "";
+    const d = (Date.now() - ts) / 1000;
+    if (d < 60) return "방금";
+    if (d < 3600) return Math.floor(d / 60) + "분 전";
+    if (d < 86400) return Math.floor(d / 3600) + "시간 전";
+    return Math.floor(d / 86400) + "일 전";
+  }
+  const AVATARS = ["🦊", "🐻", "🐼", "🐯", "🦁", "🐸", "🐙", "🦄", "🐧", "🐨", "🐰", "🐲", "🦖", "🐳", "🦉", "🐮", "🐷", "🐵", "🐹", "🦝"];
+  const AV_BG = ["#ffd6d6", "#ffe8c2", "#fff6b3", "#c9f3ef", "#d6e6ff", "#e6dcff", "#ffd9e6", "#d9f7d1"];
+  function avatar(name) {
+    const i = allPeople().indexOf(name);
+    const idx = i >= 0 ? i : [...String(name)].reduce((a, c) => a + c.charCodeAt(0), 0);
+    return { emoji: AVATARS[idx % AVATARS.length], bg: AV_BG[idx % AV_BG.length] };
+  }
+
+  function renderChrome(active) {
+    const f = document.createElement("div"); f.className = "floaties";
+    const em = ["🏕️", "🍜", "🔥", "🍻", "🥩", "🎉", "🚗", "🌙", "⛺", "🍢", "🎲", "🥂"];
+    em.forEach((e, i) => {
+      const s = document.createElement("span");
+      s.textContent = e;
+      s.style.left = (i * 37 + 7) % 92 + "%"; s.style.top = (i * 53 + 11) % 90 + "%";
+      s.style.animationDelay = (-i * 1.7) + "s"; s.style.fontSize = 24 + (i % 4) * 7 + "px";
+      f.appendChild(s);
+    });
+    document.body.prepend(f);
+
+    const top = $(".topbar");
+    if (top) {
+      top.innerHTML = `
+        <a class="brand" href="./index.html"><span class="dot"></span>SSU AICS 워크샵</a>
+        <nav class="topnav">
+          <a href="./index.html" class="${active === "home" ? "on" : ""}">🍜 모임·숙소</a>
+          <a href="./people.html" class="${active === "people" ? "on" : ""}">🙋 인원체크</a>
+          <a href="./shopping.html" class="${active === "shopping" ? "on" : ""}">🛒 장보기</a>
+        </nav>
+        <label class="me-pick"><span class="who">나는</span>
+          <select id="mePick" data-people><option value="">누구?</option></select><span>▾</span></label>`;
+      refreshPeopleSelects();
+      const sel = $("#mePick");
+      sel.addEventListener("change", () => { setMe(sel.value); if (sel.value) toast(`${sel.value} 님, 반가워요 👋`); });
+    }
+
+    const tabs = [
+      { href: "index.html", ic: "🍜", label: "모임·숙소", id: "home" },
+      { href: "people.html", ic: "🙋", label: "인원체크", id: "people" },
+      { href: "shopping.html", ic: "🛒", label: "장보기", id: "shopping" }
+    ];
+    const bar = document.createElement("div"); bar.className = "tabbar";
+    bar.innerHTML = `<nav>${tabs.map((t) => `<a href="./${t.href}" class="${t.id === active ? "on" : ""}"><span class="ic">${t.ic}</span>${t.label}</a>`).join("")}</nav>`;
+    document.body.appendChild(bar);
+
+    document.addEventListener("wk:status", (e) => {
+      $$(".sync").forEach((el) => {
+        el.classList.toggle("off", !e.detail.online); el.classList.toggle("busy", e.detail.busy && e.detail.online);
+        const b = el.querySelector("b");
+        if (b) b.textContent = e.detail.provider === "local" ? "내 기기에만 저장 (공유 저장소 미설정)" : !e.detail.online ? "오프라인 (내 기기 저장, 자동 재시도)" : e.detail.busy ? "동기화 중…" : "실시간 공유 중";
+      });
+    });
+    if (provider === "local") setTimeout(() => setStatus({ online: false }), 0);
+  }
+
+  function copy(text) {
+    const fallback = () => {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); toast("주소 복사됨 📋"); } catch { toast("복사 실패 😢"); }
+      ta.remove();
+    };
+    if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => toast("주소 복사됨 📋"), fallback);
+    else fallback();
+  }
+
+  window.WK = {
+    $, $$, esc, getMe, setMe, toast, confetti, uid, timeAgo, avatar, renderChrome, copy,
+    allPeople, setExtraPeople, refreshPeopleSelects,
+    store: { pull, set, remove, subscribe, startPolling, status, state, provider }
+  };
+})();
