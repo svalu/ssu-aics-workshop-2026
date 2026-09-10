@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css?v=3">
+<link rel="stylesheet" href="./assets/style.css?v=8">
 </head>
 <body>
 <div class="wrap">
@@ -106,8 +106,8 @@
   <p class="footer">SSU AICS UNIT · 2026 하반기 워크샵 · 즐겁게 놀다 옵시다 🎉</p>
 </div>
 
-<script src="./assets/data.js?v=3"></script>
-<script src="./assets/app.js?v=3"></script>
+<script src="./assets/data.js?v=8"></script>
+<script src="./assets/app.js?v=8"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, esc, copy } = window.WK;
@@ -154,6 +154,10 @@
     <div class="menu-item ${m.hot ? "hot" : ""}">${m.hot ? '<span class="hotmark">추천</span>' : ""}
       <div class="n">${esc(m.name)}</div><div class="p">${won(m.price)}</div>${m.desc ? `<div class="d">${esc(m.desc)}</div>` : ""}
     </div>`).join("");
+
+  // 스크롤하면서 하나씩 등장
+  WK.reveal(".timeline li");
+  WK.reveal(".menu-item");
 
   // 숙소
   const p = C.places.pension;

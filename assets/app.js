@@ -141,10 +141,12 @@
     setStatus({ busy: true });
     try {
       const hadQueue = queue.length > 0;
-      await flushQueue();
-      if (hadQueue) setStatus({ writable: true });
+      // 밀린 쓰기 재시도. 여기서 실패해도 '읽기'는 별개로 계속 진행한다.
+      try { await flushQueue(); if (hadQueue) setStatus({ writable: true }); }
+      catch (e) { console.warn("밀린 저장 재시도 실패", e); setStatus({ writable: false }); }
       const docs = await A.list(col);
-      apply(col, docs);
+      // 아직 서버에 못 올린 내 변경은 항상 위에 덮어씌운다 (서버 응답이 지우지 못하게)
+      apply(col, overlay(col, docs));
       setStatus({ online: true, busy: false });
       probeWrite();
       if (hadQueue && !queue.length) toast("연결 복구! 밀린 변경 저장 완료 ✅");
@@ -159,20 +161,26 @@
   }
 
   async function write(op) {
-    // 낙관적 반영
-    const docs = { ...(state[op.col] || readCache(op.col) || {}) };
-    if (op.type === "set") docs[op.id] = op.obj; else delete docs[op.id];
-    apply(op.col, docs);
-    if (provider === "local") return;
+    const optimistic = () => {
+      const docs = { ...(state[op.col] || readCache(op.col) || {}) };
+      if (op.type === "set") docs[op.id] = op.obj; else delete docs[op.id];
+      apply(op.col, docs);
+    };
+    if (provider === "local") { optimistic(); return; }
+
+    // 보내기 전에 먼저 큐에 넣는다. 그래야 도중에 도착한 서버 응답이 이 변경을 지우지 못한다.
+    const dup = queue.findIndex((q) => q.col === op.col && q.id === op.id);
+    if (dup >= 0) queue.splice(dup, 1);   // 같은 항목의 이전 변경은 최신 것으로 대체
+    queue.push(op); saveQueue();
+    optimistic();
+
     setStatus({ busy: true });
     try {
       await flushQueue();
-      if (op.type === "set") await A.set(op.col, op.id, op.obj); else await A.del(op.col, op.id);
       setStatus({ online: true, busy: false, writable: true });
     } catch (e) {
       console.warn("write 실패", e);
-      queue.push(op); saveQueue();
-      setStatus({ online: false, busy: false, writable: false });
+      setStatus({ busy: false, writable: false });
       toast("지금은 공유 저장소에 저장이 안 돼요. 연결되면 자동으로 올라가요");
     }
   }
@@ -290,6 +298,72 @@
       });
     });
     if (provider === "local") setTimeout(() => setStatus({ online: false }), 0);
+
+    initRipple();
+    initPageTransition();
+  }
+
+  /* ---------- 모션 ---------- */
+  const reduced = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // 눌렀을 때 퍼지는 물결
+  function initRipple() {
+    if (reduced()) return;
+    const SEL = ".btn, .chip, .choice, .tabbar a, .topnav a";
+    document.addEventListener("pointerdown", (e) => {
+      const el = e.target.closest(SEL);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const d = Math.max(r.width, r.height) * 2.2;
+      const rip = document.createElement("span");
+      rip.className = "rip";
+      rip.style.cssText = `left:${e.clientX - r.left}px;top:${e.clientY - r.top}px;width:${d}px;height:${d}px`;
+      el.appendChild(rip);
+      rip.addEventListener("animationend", () => rip.remove());
+    }, { passive: true });
+  }
+
+  // 스크롤하면서 하나씩 나타나기 (JS가 켤 때만 숨김 — 실패해도 내용은 보임)
+  function reveal(selector, root = document) {
+    const els = $$(selector, root);
+    if (!els.length || reduced() || !("IntersectionObserver" in window)) return;
+    let n = 0, fired = false;
+    const io = new IntersectionObserver((entries, obs) => {
+      fired = true;
+      entries.forEach((en) => {
+        if (!en.isIntersecting) return;
+        en.target.style.animationDelay = Math.min(n++ % 6, 5) * 55 + "ms";
+        en.target.classList.add("in");
+        obs.unobserve(en.target);
+      });
+    }, { rootMargin: "0px 0px -8% 0px", threshold: .08 });
+    els.forEach((el) => { el.setAttribute("data-reveal", ""); io.observe(el); });
+    // 안전장치: 관찰기가 아예 동작하지 않으면 그때만 전부 보이게
+    setTimeout(() => { if (!fired) els.forEach((el) => el.classList.add("in")); }, 2000);
+  }
+
+  // 페이지 전환: 링크 누르면 살짝 사라졌다가 다음 페이지에서 떠오르게
+  function initPageTransition() {
+    // 탭을 옮기면 항상 맨 위에서 시작 (스크롤 위치 복원 끄기)
+    if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    if (reduced()) return;
+    let leaving = false;
+    document.addEventListener("click", (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target.closest("a[href]");
+      if (!a || a.target === "_blank" || a.hasAttribute("download")) return;
+      const url = new URL(a.href, location.href);
+      if (url.origin !== location.origin) return;
+      if (url.pathname === location.pathname && url.hash) return; // 같은 페이지 앵커
+      e.preventDefault();
+      if (leaving) return;
+      leaving = true;
+      document.body.classList.add("leaving");
+      setTimeout(() => { location.href = url.href; }, 165);
+      setTimeout(() => { leaving = false; document.body.classList.remove("leaving"); }, 3000); // 이동 실패 대비
+    });
+    // 뒤로가기로 돌아왔을 때 흐려진 채로 남지 않게
+    window.addEventListener("pageshow", () => { leaving = false; document.body.classList.remove("leaving"); });
   }
 
   function copy(text) {
@@ -304,7 +378,7 @@
 
   window.WK = {
     $, $$, esc, getMe, setMe, toast, confetti, uid, timeAgo, avatar, renderChrome, copy,
-    allPeople, setExtraPeople, refreshPeopleSelects,
+    allPeople, setExtraPeople, refreshPeopleSelects, reveal, reduced,
     store: { pull, set, remove, setLocal, subscribe, startPolling, status, state, provider }
   };
 })();

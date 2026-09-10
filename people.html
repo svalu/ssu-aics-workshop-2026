@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css?v=3">
+<link rel="stylesheet" href="./assets/style.css?v=8">
 </head>
 <body>
 <div class="wrap">
@@ -94,8 +94,8 @@
   </div>
 </div>
 
-<script src="./assets/data.js?v=3"></script>
-<script src="./assets/app.js?v=3"></script>
+<script src="./assets/data.js?v=8"></script>
+<script src="./assets/app.js?v=8"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe } = window.WK;
@@ -110,6 +110,8 @@
   const STATUS = { noodle: "🍜 식당 집결", late: "⏰ 늦게 도착", pension: "🏠 펜션 직행", absent: "😢 불참" };
   let att = {}, extra = {};
   let editing = null, pickStatus = "noodle";
+  let popName = null;  // 방금 저장한 카드만 통통 튀게
+  const popOnce = (n) => { popName = n; setTimeout(() => { popName = null; }, 700); };
 
   const isExtra = (name) => !C.people.includes(name) && !!extra[name];
   function personOf(name) {
@@ -127,7 +129,7 @@
       const p = personOf(name); const av = avatar(name);
       if (p.updatedAt) filled++; cnt[p.status] = (cnt[p.status] || 0) + 1;
       const showTime = p.status !== "absent";
-      return `<button type="button" class="person ${name === me ? "me" : ""} ${p.status === "absent" ? "absent" : ""}" data-name="${esc(name)}">
+      return `<button type="button" class="person ${name === me ? "me" : ""} ${p.status === "absent" ? "absent" : ""} ${name === popName ? "pop" : ""}" data-name="${esc(name)}">
         ${name === me ? '<span class="me-badge">ME</span>' : isExtra(name) ? '<span class="me-badge" style="background:var(--mint)">추가됨</span>' : ""}
         ${p.updatedAt ? `<span class="edited">${timeAgo(p.updatedAt)}</span>` : '<span class="edited">아직 미입력</span>'}
         <div class="av" style="background:${av.bg}">${av.emoji}</div>
@@ -178,6 +180,7 @@
     closeSheet();
     const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top);
     toast(`${name} 저장! ${STATUS[rec.status]}`);
+    popOnce(name);
     store.set("att", name, rec);
   };
   $("#btnRemove").onclick = () => {
@@ -203,6 +206,7 @@
     closeAdd();
     const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 22);
     toast(`${name} 님 추가! 환영 🎉`);
+    popOnce(name);
     store.set("person", name, { name, ride, addedBy: getMe() || "", createdAt: Date.now() });
   };
 

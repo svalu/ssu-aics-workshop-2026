@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css?v=3">
+<link rel="stylesheet" href="./assets/style.css?v=8">
 </head>
 <body>
 <div class="wrap">
@@ -91,8 +91,8 @@
   </div>
 </div>
 
-<script src="./assets/data.js?v=3"></script>
-<script src="./assets/app.js?v=3"></script>
+<script src="./assets/data.js?v=8"></script>
+<script src="./assets/app.js?v=8"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe, uid } = window.WK;
@@ -101,6 +101,8 @@
 
   const catMap = Object.fromEntries(C.categories.map((c) => [c.id, c]));
   let items = {}, filter = "all", editingId = null, loadedOnce = false;
+  let popId = null;  // 방금 바꾼 항목만 통통 튀게
+  const popOnce = (id) => { popId = id; setTimeout(() => { popId = null; }, 700); };
 
   // 식단
   const dish = (d) => `<div class="dish ${d.by ? "by" : ""}">${esc(d.name)}${d.by ? `<small>👨‍🍳 ${esc(d.by)}</small>` : ""}${d.memo ? `<small>${esc(d.memo)}</small>` : ""}</div>`;
@@ -190,7 +192,7 @@
   function itemHtml(i) {
     const av = i.buyer ? avatar(i.buyer).emoji + " " : "";
     const meta = [i.done && i.doneBy ? `✅ ${i.doneBy}` : "", i.addedBy && i.addedBy !== "엑셀" ? `${i.addedBy} 추가` : "", i.updatedAt ? timeAgo(i.updatedAt) : ""].filter(Boolean).join(" · ");
-    return `<li class="item ${i.done ? "done" : ""}" data-id="${esc(i.id)}">
+    return `<li class="item ${i.done ? "done" : ""} ${i.id === popId ? "pop" : ""}" data-id="${esc(i.id)}">
       <button type="button" class="chk" data-act="toggle" aria-label="구매 체크">${i.done ? "✓" : ""}</button>
       <div class="body" data-act="edit"><div class="nm">${esc(i.name)}</div>${i.memo ? `<div class="mm">${esc(i.memo)}</div>` : ""}${meta ? `<div class="meta">${esc(meta)}</div>` : ""}</div>
       <div class="side">
@@ -207,6 +209,7 @@
     if (act === "toggle") {
       const willDone = !it.done;
       if (willDone) { const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top + r.height / 2, 14); }
+      popOnce(it.id);
       store.set(COL, it.id, { ...it, done: willDone, doneBy: willDone ? (getMe() || "") : "", updatedAt: Date.now() });
     } else if (act === "buyer") openEdit(it.id, true);
     else if (act === "edit") openEdit(it.id);
@@ -221,6 +224,7 @@
     const r = e.submitter ? e.submitter.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight - 160, width: 0 };
     confetti(r.left + r.width / 2, r.top, 16); toast(`"${name}" 추가! 🛒`);
     if (filter !== "all" && filter !== rec.cat) filter = rec.cat;
+    popOnce(rec.id);
     store.set(COL, rec.id, rec);
   });
 
@@ -238,6 +242,7 @@
     const it = items[editingId]; if (!it) return;
     const rec = { ...it, name: $("#edName").value.trim() || it.name, memo: $("#edMemo").value.trim(), cat: $("#edCat").value, buyer: $("#edBuyer").value, updatedAt: Date.now() };
     closeEdit(); toast("수정 저장 ✅");
+    popOnce(it.id);
     store.set(COL, it.id, rec);
   };
   $("#edDelete").onclick = () => {
