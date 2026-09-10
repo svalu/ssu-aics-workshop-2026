@@ -162,6 +162,8 @@
   }
   const set = (col, id, obj) => write({ type: "set", col, id, obj });
   const remove = (col, id) => write({ type: "del", col, id });
+  // 화면에만 반영 (서버/캐시에 저장 안 함) — 오프라인일 때 기본 목록 보여주기용
+  function setLocal(col, id, obj) { const docs = { ...(state[col] || {}) }; docs[id] = obj; state[col] = docs; emit(col); }
 
   function subscribe(col, fn) {
     (listeners[col] = listeners[col] || []).push(fn);
@@ -279,6 +281,6 @@
   window.WK = {
     $, $$, esc, getMe, setMe, toast, confetti, uid, timeAgo, avatar, renderChrome, copy,
     allPeople, setExtraPeople, refreshPeopleSelects,
-    store: { pull, set, remove, subscribe, startPolling, status, state, provider }
+    store: { pull, set, remove, setLocal, subscribe, startPolling, status, state, provider }
   };
 })();

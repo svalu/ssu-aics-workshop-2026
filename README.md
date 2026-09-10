@@ -17,17 +17,24 @@
 - `seedItems`: 장보기 초기 목록 (서버가 비어 있을 때 한 번만 사용)
 - `places`: 식당/숙소 정보, 메뉴
 
-## 공유 저장소
-인원체크·장보기 데이터는 무료 JSON 저장소(extendsclass.com json-storage)에 저장됩니다.
-로그인 없이 누구나 읽고 쓰며, 8초마다 자동 새로고침됩니다. 연결이 안 될 때는 내 기기에만 저장되고, 복구되면 자동으로 올라갑니다.
+## 공유 저장소 (인원체크 · 장보기 데이터)
+`assets/data.js`의 `storage.provider`로 선택합니다. 어느 쪽이든 로그인 없이 누구나 읽고 쓰고, 15초마다 자동 새로고침됩니다.
+연결이 안 될 때는 내 기기에 저장해 두고, 연결되면 자동으로 올립니다.
 
-저장소를 초기화하거나 새로 만들려면:
+| provider | 설명 | 설정 |
+|---|---|---|
+| `kvdb` (기본) | [kvdb.io](https://kvdb.io) 무료 버킷 | `storage.kvdb.bucket` 에 버킷 ID |
+| `firebase` | Firebase Realtime Database (가장 안정적) | `storage.firebase.databaseURL` 에 DB 주소, 규칙 read/write true |
+| `local` | 공유 안 함, 내 기기만 (테스트용) | – |
+
+kvdb.io 버킷은 만든 이메일을 한 번 인증해야 쓰기가 열립니다: https://kvdb.io/login 에서 이메일 입력 → 메일의 링크 클릭.
+새 버킷 만들기:
 
 ```bash
-curl -X POST -H "Content-Type: application/json" -d "{}" https://extendsclass.com/api/json-storage/bin
+curl -d "email=you@example.com" https://kvdb.io
 ```
 
-응답의 `id`를 `assets/data.js`의 `storage.bins`에 넣으세요.
+배포는 `deploy.ps1` (사전에 `gh auth login`).
 
 ## 로컬에서 보기
 

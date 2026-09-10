@@ -99,16 +99,17 @@
   $("#addCat").innerHTML = catOpts; $("#edCat").innerHTML = catOpts; $("#addCat").value = "bbq";
   WK.refreshPeopleSelects();
 
-  // 서버가 비어 있으면 엑셀 목록으로 한 번 채움
+  // 서버가 비어 있으면 엑셀 목록으로 한 번 채움 (오프라인이면 화면에만 보여줌)
+  let seededRemote = false;
+  const seedDocs = () => { const t = Date.now(); return C.seedItems.map((it, i) => ({ id: "seed" + String(i).padStart(2, "0"), cat: it.cat, name: it.name, memo: it.memo || "", buyer: "", done: false, addedBy: "엑셀", createdAt: t + i, order: i })); };
   function seedIfEmpty() {
     if (Object.keys(items).length) return;
-    const t = Date.now();
-    C.seedItems.forEach((it, i) => {
-      const id = "seed" + String(i).padStart(2, "0");
-      store.set(COL, id, { id, cat: it.cat, name: it.name, memo: it.memo || "", buyer: "", done: false, addedBy: "엑셀", createdAt: t + i, order: i });
-    });
+    if (store.provider !== "local" && !store.status.online) { seedDocs().forEach((d) => store.setLocal(COL, d.id, d)); return; }
+    if (seededRemote) return; seededRemote = true;
+    seedDocs().forEach((d) => store.set(COL, d.id, d));
     toast("엑셀 장보기 목록을 불러왔어요 📋");
   }
+  document.addEventListener("wk:status", (e) => { if (loadedOnce && e.detail.online && !e.detail.busy) seedIfEmpty(); });
 
   const sorted = () => Object.values(items).filter((i) => i && i.id).sort((a, b) => (a.order ?? a.createdAt) - (b.order ?? b.createdAt));
 
@@ -203,12 +204,7 @@
     WK.setExtraPeople(names);
   });
   store.startPolling([COL, "person"]);
-  store.pull(COL, { silent: true }).then(() => {
-    loadedOnce = true;
-    if (store.status.online && store.provider !== "local") seedIfEmpty();
-    else if (store.provider === "local") seedIfEmpty();
-    render();
-  });
+  store.pull(COL, { silent: true }).then(() => { loadedOnce = true; seedIfEmpty(); render(); });
 })();
 </script>
 </body>
