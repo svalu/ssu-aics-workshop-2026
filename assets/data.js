@@ -9,7 +9,7 @@ window.WK_CONFIG = {
   subtitle: "1박 2일 · 15명 · 곤지암",
   // 워크샵 당일 (예: "2026-09-19"). 비워두면 D-day 표시가 숨겨집니다.
   date: "",
-  meetTime: "12:00",
+  meetTime: "14:00",
   // 공유 저장소 설정 -------------------------------------------------
   // provider: "kvdb" | "firebase" | "local"
   //  - kvdb    : https://kvdb.io 버킷 (무료, 로그인 없이 읽기/쓰기). bucket 값만 넣으면 끝.
@@ -40,7 +40,7 @@ window.WK_CONFIG = {
     "이상묵": "이기원 차 동승",
     "이현행": "전병수 차 동승"
   },
-  shoppers: ["장유석", "이기원"],
+  shoppers: ["장유석", "이현행"],  // 초기값. 사이트에서 누구나 수정 가능(공유 저장)
   shopperNote: "전병수: \"난 빼줘\" 🙅",
   places: {
     restaurant: {

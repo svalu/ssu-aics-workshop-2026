@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css">
+<link rel="stylesheet" href="./assets/style.css?v=2">
 </head>
 <body>
 <div class="wrap">
@@ -27,6 +27,7 @@
       <span class="sync"><i></i><b>연결 중…</b></span>
     </div>
     <div class="tags" id="shoppers"></div>
+    <button type="button" class="btn ghost sm" id="editShoppers" style="margin-top:10px">✏️ 장볼 사람 수정</button>
     <p style="margin:10px 0 0;font-size:13px;color:var(--ink-2);font-weight:600">항목 옆 <b>담당?</b>을 눌러 장볼 사람을 정하고, 사면 왼쪽 네모 체크! 항목 이름이나 ⋯ 를 누르면 수정·삭제.</p>
   </section>
 
@@ -59,6 +60,20 @@
   <p class="footer" style="margin-top:18px">누구나 추가·수정·삭제 가능 · 변경은 모두에게 바로 공유돼요</p>
 </div>
 
+<!-- 장볼 사람 편집 시트 -->
+<div class="sheet-bg" id="shopperBg">
+  <div class="sheet" role="dialog" aria-modal="true">
+    <h2>장볼 사람 🛒</h2>
+    <p class="hint">이름을 눌러서 켜고 끄면 돼요. 누구나 수정 가능!</p>
+    <div class="picker" id="shopperPick"></div>
+    <div class="field"><label>한마디 (선택)</label><input type="text" id="shopperNote" placeholder='예: 전병수: "난 빼줘" 🙅' maxlength="60"></div>
+    <div class="sheet-actions">
+      <button type="button" class="btn ghost" id="spCancel">닫기</button>
+      <button type="button" class="btn primary" id="spSave">저장 ✅</button>
+    </div>
+  </div>
+</div>
+
 <!-- 항목 편집 시트 -->
 <div class="sheet-bg" id="sheetBg">
   <div class="sheet" role="dialog" aria-modal="true">
@@ -76,8 +91,8 @@
   </div>
 </div>
 
-<script src="./assets/data.js"></script>
-<script src="./assets/app.js"></script>
+<script src="./assets/data.js?v=2"></script>
+<script src="./assets/app.js?v=2"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe, uid } = window.WK;
@@ -91,9 +106,45 @@
   const dish = (d) => `<div class="dish ${d.by ? "by" : ""}">${esc(d.name)}${d.by ? `<small>👨‍🍳 ${esc(d.by)}</small>` : ""}${d.memo ? `<small>${esc(d.memo)}</small>` : ""}</div>`;
   $("#dinner").innerHTML = C.mealPlan.dinner.map(dish).join("");
   $("#breakfast").innerHTML = C.mealPlan.breakfast.map(dish).join("");
-  $("#shoppers").innerHTML = `<span class="tag" style="border-style:dashed">장볼 사람</span>` +
-    C.shoppers.map((n) => `<span class="tag lemon">${avatar(n).emoji} ${esc(n)}</span>`).join("") +
-    (C.shopperNote ? `<span class="tag">${esc(C.shopperNote)}</span>` : "");
+  // ---- 장볼 사람 (공유 저장, 누구나 수정)
+  let shopperDoc = null, spPick = [];
+  const shopperNames = () => (shopperDoc && Array.isArray(shopperDoc.names) ? shopperDoc.names : C.shoppers);
+  const shopperNote = () => (shopperDoc && typeof shopperDoc.note === "string" ? shopperDoc.note : C.shopperNote);
+  function renderShoppers() {
+    const names = shopperNames(), note = shopperNote();
+    $("#shoppers").innerHTML = `<span class="tag" style="border-style:dashed">장볼 사람</span>` +
+      (names.length ? names.map((n) => `<span class="tag lemon">${avatar(n).emoji} ${esc(n)}</span>`).join("") : `<span class="tag">아직 미정 🤔</span>`) +
+      (note ? `<span class="tag">${esc(note)}</span>` : "");
+  }
+  function openShoppers() {
+    spPick = shopperNames().slice();
+    $("#shopperNote").value = shopperNote() || "";
+    paintPick();
+    $("#shopperBg").classList.add("open"); document.body.style.overflow = "hidden";
+  }
+  function paintPick() {
+    $("#shopperPick").innerHTML = WK.allPeople().map((n) =>
+      `<button type="button" class="chip ${spPick.includes(n) ? "on" : ""}" data-n="${esc(n)}">${avatar(n).emoji} ${esc(n)}</button>`).join("");
+  }
+  function closeShoppers() { $("#shopperBg").classList.remove("open"); document.body.style.overflow = ""; }
+  $("#editShoppers").onclick = openShoppers;
+  $("#spCancel").onclick = closeShoppers;
+  $("#shopperBg").addEventListener("click", (e) => { if (e.target === e.currentTarget) closeShoppers(); });
+  $("#shopperPick").addEventListener("click", (e) => {
+    const b = e.target.closest(".chip"); if (!b) return;
+    const n = b.dataset.n;
+    spPick = spPick.includes(n) ? spPick.filter((x) => x !== n) : [...spPick, n];
+    paintPick();
+  });
+  $("#spSave").onclick = (e) => {
+    const rec = { names: spPick.slice(), note: $("#shopperNote").value.trim(), updatedAt: Date.now(), by: getMe() || "" };
+    closeShoppers();
+    const r = e.target.getBoundingClientRect(); confetti(r.left + r.width / 2, r.top, 16);
+    toast(rec.names.length ? `장볼 사람: ${rec.names.join(", ")} 🛒` : "장볼 사람 미정으로 변경");
+    store.set("meta", "shoppers", rec);
+  };
+  store.subscribe("meta", (docs) => { shopperDoc = (docs || {}).shoppers || null; renderShoppers(); });
+  renderShoppers();
 
   const catOpts = C.categories.map((c) => `<option value="${c.id}">${c.emoji} ${c.label}</option>`).join("");
   $("#addCat").innerHTML = catOpts; $("#edCat").innerHTML = catOpts; $("#addCat").value = "bbq";
@@ -198,12 +249,12 @@
 
   store.subscribe(COL, (docs) => { items = docs || {}; render(); });
   document.addEventListener("wk:me", render);
-  document.addEventListener("wk:people", render);
+  document.addEventListener("wk:people", () => { render(); renderShoppers(); });
   store.subscribe("person", (docs) => {
     const names = Object.values(docs || {}).sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((p) => p.name).filter(Boolean);
     WK.setExtraPeople(names);
   });
-  store.startPolling([COL, "person"]);
+  store.startPolling([COL, "person", "meta"]);
   store.pull(COL, { silent: true }).then(() => { loadedOnce = true; seedIfEmpty(); render(); });
 })();
 </script>

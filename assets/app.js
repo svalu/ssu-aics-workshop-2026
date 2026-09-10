@@ -96,7 +96,8 @@
   const QUEUE_KEY = "wk2_queue";
   const listeners = {};
   const state = {};
-  const status = { online: provider !== "local", busy: false, provider };
+  // writable: null = 아직 모름, true = 쓰기 가능, false = 읽기만 가능(저장소 인증 필요)
+  const status = { online: provider !== "local", busy: false, writable: provider === "local" ? false : null, provider };
   let queue = [];
   try { queue = JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch {}
 
@@ -114,6 +115,19 @@
     return out;
   }
 
+  // 읽기는 되는데 쓰기가 막힌 저장소인지 한 번 확인 (초록불이 거짓말하지 않게)
+  let probing = false, lastProbe = 0;
+  async function probeWrite() {
+    if (provider === "local" || probing) return;
+    // 처음엔 무조건, 쓰기 불가로 판정된 뒤엔 1분마다 재확인 (인증을 마치면 자동으로 풀리게)
+    if (status.writable === true) return;
+    if (status.writable === false && Date.now() - lastProbe < 60000) return;
+    probing = true; lastProbe = Date.now();
+    try { await A.set("_probe", "w", { t: Date.now() }); setStatus({ writable: true }); }
+    catch (e) { console.warn("쓰기 불가", e); setStatus({ writable: false }); }
+    finally { probing = false; }
+  }
+
   async function flushQueue() {
     while (queue.length) {
       const q = queue[0];
@@ -128,9 +142,11 @@
     try {
       const hadQueue = queue.length > 0;
       await flushQueue();
+      if (hadQueue) setStatus({ writable: true });
       const docs = await A.list(col);
       apply(col, docs);
       setStatus({ online: true, busy: false });
+      probeWrite();
       if (hadQueue && !queue.length) toast("연결 복구! 밀린 변경 저장 완료 ✅");
       return docs;
     } catch (e) {
@@ -152,12 +168,12 @@
     try {
       await flushQueue();
       if (op.type === "set") await A.set(op.col, op.id, op.obj); else await A.del(op.col, op.id);
-      setStatus({ online: true, busy: false });
+      setStatus({ online: true, busy: false, writable: true });
     } catch (e) {
       console.warn("write 실패", e);
       queue.push(op); saveQueue();
-      setStatus({ online: false, busy: false });
-      toast("지금은 공유 저장소 연결이 안 돼요. 연결되면 자동으로 저장돼요");
+      setStatus({ online: false, busy: false, writable: false });
+      toast("지금은 공유 저장소에 저장이 안 돼요. 연결되면 자동으로 올라가요");
     }
   }
   const set = (col, id, obj) => write({ type: "set", col, id, obj });
@@ -260,9 +276,17 @@
 
     document.addEventListener("wk:status", (e) => {
       $$(".sync").forEach((el) => {
-        el.classList.toggle("off", !e.detail.online); el.classList.toggle("busy", e.detail.busy && e.detail.online);
+        const d = e.detail;
+        const readOnly = d.online && d.writable === false;
+        el.classList.toggle("off", !d.online || readOnly);
+        el.classList.toggle("busy", d.busy && d.online && !readOnly);
         const b = el.querySelector("b");
-        if (b) b.textContent = e.detail.provider === "local" ? "내 기기에만 저장 (공유 저장소 미설정)" : !e.detail.online ? "오프라인 (내 기기 저장, 자동 재시도)" : e.detail.busy ? "동기화 중…" : "실시간 공유 중";
+        if (!b) return;
+        b.textContent =
+          d.provider === "local" ? "내 기기에만 저장 (공유 저장소 미설정)" :
+          !d.online ? "오프라인 (내 기기 저장, 자동 재시도)" :
+          readOnly ? "저장 대기 중 — 저장소 인증 필요 (내 기기에만 저장)" :
+          d.busy ? "동기화 중…" : "실시간 공유 중";
       });
     });
     if (provider === "local") setTimeout(() => setStatus({ online: false }), 0);

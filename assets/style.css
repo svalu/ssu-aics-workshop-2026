@@ -214,6 +214,9 @@ button { cursor: pointer; }
 .choice small { display: block; font-weight: 600; color: var(--muted); font-size: 11px; margin-top: 2px; }
 .choice.on { background: var(--lemon); box-shadow: var(--shadow-sm); }
 .choice.on.noodle { background: var(--mint); } .choice.on.late { background: var(--lemon); } .choice.on.pension { background: var(--grape); color: #fff; } .choice.on.pension small { color: #f1eaff; } .choice.on.absent { background: #ddd; }
+.picker { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.picker .chip { flex: 0 0 auto; opacity: .6; }
+.picker .chip.on { opacity: 1; background: var(--lemon); box-shadow: var(--shadow-sm); }
 .sheet-actions { display: flex; gap: 10px; margin-top: 16px; }
 .sheet-actions .btn { flex: 1; }
 
