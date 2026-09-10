@@ -129,8 +129,11 @@ button { cursor: pointer; }
 .timeline li { position: relative; padding: 0 0 14px 42px; }
 .timeline li:last-child { padding-bottom: 0; }
 .timeline .pin { position: absolute; left: 0; top: 0; width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid var(--ink); background: var(--lemon); display: grid; place-items: center; font-size: 15px; box-shadow: 2px 2px 0 var(--ink); }
-.timeline .t { font-family: var(--font-head); font-size: 16px; }
-.timeline .d { color: var(--ink-2); font-size: 14px; }
+.timeline .tt { font-family: var(--font-display); font-size: 15px; letter-spacing: .3px; color: var(--ink-2); line-height: 1.2; font-weight: 400; }
+.timeline .t { font-family: var(--font-head); font-size: 17px; line-height: 1.25; }
+.timeline .d { color: var(--ink-2); font-size: 13.5px; line-height: 1.4; margin-top: 2px; }
+.timeline li.hi .pin { background: var(--coral); color: #fff; }
+.timeline li.hi .tt { color: var(--coral); }
 
 /* --- 장소 카드 --- */
 .addr { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; color: var(--ink-2); font-size: 14.5px; margin: 6px 0; }

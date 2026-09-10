@@ -6,12 +6,12 @@
 <meta name="theme-color" content="#4ecdc4">
 <title>SSU AICS 워크샵 · 인원체크</title>
 <meta property="og:title" content="워크샵 인원체크 🙋 누가 언제 오나">
-<meta property="og:description" content="내 카드 눌러서 도착시간 적어줘! 기본은 14시 동동국수 본점.">
+<meta property="og:description" content="내 카드 눌러서 도착시간 적어줘! 기본은 13시 동동국수 본점.">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🙋</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Jua&family=Noto+Sans+KR:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="./assets/style.css?v=2">
+<link rel="stylesheet" href="./assets/style.css?v=3">
 </head>
 <body>
 <div class="wrap">
@@ -22,7 +22,7 @@
     <div class="eyebrow">🙋 인원체크</div>
     <h2>누가 언제 오나 👀</h2>
     <p style="margin:0 0 12px;color:var(--ink-2);font-size:14px;font-weight:600">
-      기본은 <b id="baseTime">14:00</b>에 <b>동동국수 본점</b>. 내 카드를 눌러서 도착 시간·이동 방법을 적어줘. 늦거나 펜션으로 바로 오면 꼭!
+      기본은 <b id="baseTime">13:00</b>에 <b>동동국수 본점</b>. 내 카드를 눌러서 도착 시간·이동 방법을 적어줘. 늦거나 펜션으로 바로 오면 꼭!
     </p>
     <div class="progress"><i id="bar" style="width:0%"></i></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;gap:8px;flex-wrap:wrap">
@@ -30,7 +30,7 @@
       <span class="sync"><i></i><b>연결 중…</b></span>
     </div>
     <div class="stat-row">
-      <div class="stat"><b id="sNoodle">0</b><span id="sNoodleLabel">🍜 14시 식당</span></div>
+      <div class="stat"><b id="sNoodle">0</b><span id="sNoodleLabel">🍜 13시 식당</span></div>
       <div class="stat"><b id="sLate">0</b><span>⏰ 늦게 도착</span></div>
       <div class="stat"><b id="sPension">0</b><span>🏠 펜션 직행</span></div>
       <div class="stat"><b id="sAbsent">0</b><span>😢 불참</span></div>
@@ -54,7 +54,7 @@
     <div class="field">
       <label>어디로?</label>
       <div class="choices" id="choices">
-        <button type="button" class="choice" data-v="noodle"><span id="chNoodle">🍜 식당 14시</span><small>기본! 동동국수 본점</small></button>
+        <button type="button" class="choice" data-v="noodle"><span id="chNoodle">🍜 식당 13시</span><small>기본! 동동국수 본점</small></button>
         <button type="button" class="choice" data-v="late">⏰ 식당 늦게<small>도착 시간 적어줘</small></button>
         <button type="button" class="choice" data-v="pension">🏠 펜션 직행<small>펜션 도착 시간</small></button>
         <button type="button" class="choice" data-v="absent">😢 불참<small>ㅠㅠ</small></button>
@@ -94,8 +94,8 @@
   </div>
 </div>
 
-<script src="./assets/data.js?v=2"></script>
-<script src="./assets/app.js?v=2"></script>
+<script src="./assets/data.js?v=3"></script>
+<script src="./assets/app.js?v=3"></script>
 <script>
 (function () {
   const C = window.WK_CONFIG, { $, $$, esc, toast, confetti, avatar, timeAgo, getMe } = window.WK;
